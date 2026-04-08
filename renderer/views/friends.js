@@ -1,8 +1,29 @@
 // renderer/views/friends.js
 
 let allFriends = [];
-let currentFilter = "all"; // "all" | "online" | "offline"
+let currentFilter = "all";
 let searchQuery = "";
+let autoRefreshTimer = null;
+let lastRefreshTime = null;
+let lastRefreshTimerUI = null;
+
+function timeAgo(dateStr) {
+  if (!dateStr) return null;
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return "a l'instant";
+  if (minutes < 60) return `il y a ${minutes}min`;
+  if (hours < 24) return `il y a ${hours}h`;
+  if (days < 7) return `il y a ${days}j`;
+  if (days < 30) return `il y a ${Math.floor(days / 7)} sem.`;
+  return `il y a ${Math.floor(days / 30)} mois`;
+}
 
 function formatStatus(presence) {
   if (!presence) return { text: "Statut indisponible", isOnline: false };
@@ -17,20 +38,20 @@ function formatStatus(presence) {
     return { text: "En ligne", isOnline: true };
   }
 
+  const ago = timeAgo(presence.lastOnlineDate);
+  if (ago) return { text: `Hors ligne — ${ago}`, isOnline: false };
   return { text: "Hors ligne", isOnline: false };
 }
 
 function getFilteredFriends() {
   let filtered = [...allFriends];
 
-  // Filtre en ligne / hors ligne
   if (currentFilter === "online") {
     filtered = filtered.filter((f) => f.presence?.isOnline);
   } else if (currentFilter === "offline") {
     filtered = filtered.filter((f) => !f.presence?.isOnline);
   }
 
-  // Recherche
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     filtered = filtered.filter((f) =>
@@ -39,7 +60,6 @@ function getFilteredFriends() {
     );
   }
 
-  // Tri : en ligne d'abord, puis alphabétique
   filtered.sort((a, b) => {
     const aOnline = a.presence?.isOnline ? 1 : 0;
     const bOnline = b.presence?.isOnline ? 1 : 0;
@@ -74,7 +94,7 @@ function renderFriendCard(friend) {
     : "";
 
   return `
-    <div class="friend-card ${isOnline ? "is-online" : ""}">
+    <div class="friend-card ${isOnline ? "is-online" : ""} card-animate">
       <div class="friend-avatar-wrap">
         ${avatarHtml}
         ${onlineDot}
@@ -100,22 +120,24 @@ function renderFriendsList(container) {
   const stats = container.querySelector(".friends-stats");
 
   if (stats) {
+    const refreshAgo = lastRefreshTime ? timeAgo(new Date(lastRefreshTime).toISOString()) : null;
+    const refreshLabel = refreshAgo ? `<span class="friends-stat refresh-hint">Mis a jour ${refreshAgo}</span>` : "";
     stats.innerHTML = `
       <span class="friends-stat"><strong>${allFriends.length}</strong> amis</span>
       <span class="friends-stat"><strong>${onlineCount}</strong> en ligne</span>
-      ${searchQuery ? `<span class="friends-stat"><strong>${filtered.length}</strong> résultats</span>` : ""}
+      ${searchQuery ? `<span class="friends-stat"><strong>${filtered.length}</strong> resultats</span>` : ""}
+      ${refreshLabel}
     `;
   }
 
   if (grid) {
     if (filtered.length === 0) {
       grid.innerHTML = `<div class="empty-state"><p>${
-        searchQuery ? "Aucun ami ne correspond à ta recherche." : "Aucun ami dans cette catégorie."
+        searchQuery ? "Aucun ami ne correspond a ta recherche." : "Aucun ami dans cette categorie."
       }</p></div>`;
     } else {
       grid.innerHTML = filtered.map(renderFriendCard).join("");
 
-      // Compare button handlers
       grid.querySelectorAll(".compare-btn").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -127,7 +149,6 @@ function renderFriendsList(container) {
 }
 
 function setupEvents(container, loadFn) {
-  // Search
   const searchInput = container.querySelector(".search-box input");
   if (searchInput) {
     searchInput.addEventListener("input", (e) => {
@@ -136,7 +157,6 @@ function setupEvents(container, loadFn) {
     });
   }
 
-  // Filters
   container.querySelectorAll(".filter-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       container.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
@@ -146,36 +166,43 @@ function setupEvents(container, loadFn) {
     });
   });
 
-  // Refresh
   const refreshBtn = container.querySelector(".refresh-btn");
   if (refreshBtn) {
     refreshBtn.addEventListener("click", () => loadFn(container));
   }
 }
 
-async function loadFriends(container) {
+async function loadFriends(container, silent = false) {
   const refreshBtn = container.querySelector(".refresh-btn");
   const grid = container.querySelector(".friends-grid");
 
-  if (refreshBtn) {
-    refreshBtn.disabled = true;
-    refreshBtn.classList.add("loading");
+  if (!silent) {
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.classList.add("loading");
+    }
+    if (!allFriends.length) {
+      grid.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><p>Chargement des amis...</p></div>`;
+    }
   }
-
-  grid.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><p>Chargement des amis...</p></div>`;
 
   try {
     const res = await window.psnAPI.getFriends(100);
 
     if (!res.ok) {
-      grid.innerHTML = `<div class="error-state"><p>Erreur : ${res.error}</p></div>`;
+      if (!silent && !allFriends.length) {
+        grid.innerHTML = `<div class="error-state"><p>Erreur : ${res.error}</p></div>`;
+      }
       return;
     }
 
     allFriends = res.data.friends;
+    lastRefreshTime = Date.now();
     renderFriendsList(container);
   } catch (err) {
-    grid.innerHTML = `<div class="error-state"><p>Erreur inattendue : ${err.message}</p></div>`;
+    if (!silent && !allFriends.length) {
+      grid.innerHTML = `<div class="error-state"><p>Erreur : ${err.message}</p></div>`;
+    }
   } finally {
     if (refreshBtn) {
       refreshBtn.disabled = false;
@@ -184,9 +211,31 @@ async function loadFriends(container) {
   }
 }
 
+function startAutoRefresh(container) {
+  stopAutoRefresh();
+  // Refresh silencieux toutes les 5 minutes
+  autoRefreshTimer = setInterval(() => {
+    loadFriends(container, true);
+  }, 5 * 60 * 1000);
+
+  // Mettre à jour le label "Mis à jour il y a..." toutes les 30s
+  lastRefreshTimerUI = setInterval(() => {
+    const hint = container.querySelector(".refresh-hint");
+    if (hint && lastRefreshTime) {
+      hint.textContent = `Mis a jour ${timeAgo(new Date(lastRefreshTime).toISOString())}`;
+    }
+  }, 30_000);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  if (lastRefreshTimerUI) { clearInterval(lastRefreshTimerUI); lastRefreshTimerUI = null; }
+}
+
 export function render(container) {
   currentFilter = "all";
   searchQuery = "";
+  stopAutoRefresh();
 
   container.innerHTML = `
     <div class="view-header">
@@ -216,4 +265,5 @@ export function render(container) {
 
   setupEvents(container, loadFriends);
   loadFriends(container);
+  startAutoRefresh(container);
 }

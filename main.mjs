@@ -13,7 +13,7 @@ import {
 import { fetchPlayedGames } from "./src/psn-games.js";
 import { searchPlayers, fetchPlayerProfile } from "./src/psn-search.js";
 import { setupTray } from "./src/tray.js";
-import { startMonitor, stopMonitor } from "./src/presence-monitor.js";
+import { startMonitor, stopMonitor, getActivityHistory } from "./src/presence-monitor.js";
 import { staleWhileRevalidate } from "./src/cache.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -188,4 +188,8 @@ ipcMain.handle("psn:compareTrophies", async (_event, npCommunicationId, npServic
     console.error("[ipc] psn:compareTrophies error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };
   }
+});
+
+ipcMain.handle("psn:getActivityHistory", () => {
+  return { ok: true, data: getActivityHistory() };
 });

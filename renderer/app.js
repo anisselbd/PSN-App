@@ -5,6 +5,10 @@ import { render as renderTrophies } from "./views/trophies.js";
 import { render as renderLibrary } from "./views/library.js";
 import { render as renderSearch } from "./views/search.js";
 import { render as renderCompare, startCompare } from "./views/compare.js";
+import { render as renderStats } from "./views/stats.js";
+import { render as renderActivity } from "./views/activity.js";
+import { render as renderProfileCard } from "./views/profile-card.js";
+import { render as renderSettings, applyTheme, getSetting } from "./views/settings.js";
 
 const views = {
   dashboard: renderDashboard,
@@ -13,6 +17,10 @@ const views = {
   library: renderLibrary,
   search: renderSearch,
   compare: renderCompare,
+  stats: renderStats,
+  activity: renderActivity,
+  "profile-card": renderProfileCard,
+  settings: renderSettings,
 };
 
 let currentView = "dashboard";
@@ -26,8 +34,11 @@ function navigate(viewName) {
     btn.classList.toggle("active", btn.dataset.view === viewName);
   });
 
-  // Render view
+  // Render view with animation
   const content = document.getElementById("content");
+  content.style.animation = "none";
+  content.offsetHeight; // force reflow
+  content.style.animation = "";
   views[viewName](content);
 }
 
@@ -73,6 +84,9 @@ window.psnAPI.onPresenceUpdate(({ onlineCount }) => {
     card.querySelector(".value").textContent = onlineCount;
   }
 });
+
+// Appliquer le thème sauvegardé
+applyTheme(getSetting("theme", "dark"));
 
 // Initial load
 navigate("dashboard");

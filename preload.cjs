@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("psnAPI", {
   onPresenceUpdate: (callback) => {
     ipcRenderer.on("psn:presenceUpdate", (_event, data) => callback(data));
   },
+  getActivityHistory: () => ipcRenderer.invoke("psn:getActivityHistory"),
   onFreshData: (callback) => {
     ipcRenderer.on("psn:freshData", (_event, data) => callback(data));
   },
