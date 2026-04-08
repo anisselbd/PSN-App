@@ -43,7 +43,7 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => navigate(btn.dataset.view));
 });
 
-// Quand des données fraîches arrivent du background, re-render la vue active
+// Quand des données fraîches arrivent du background, re-render une seule fois
 const refreshMap = {
   profile: "dashboard",
   friends: "friends",
@@ -51,12 +51,19 @@ const refreshMap = {
   playedGames: "library",
 };
 
+const recentRefreshes = new Set();
+
 window.psnAPI.onFreshData(({ key }) => {
   const targetView = refreshMap[key];
-  if (targetView && currentView === targetView) {
-    const content = document.getElementById("content");
-    views[currentView](content);
-  }
+  if (!targetView || currentView !== targetView) return;
+
+  // Anti-boucle : ignorer si on a déjà refresh cette clé récemment
+  if (recentRefreshes.has(key)) return;
+  recentRefreshes.add(key);
+  setTimeout(() => recentRefreshes.delete(key), 10_000);
+
+  const content = document.getElementById("content");
+  views[currentView](content);
 });
 
 // Initial load
