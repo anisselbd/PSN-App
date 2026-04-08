@@ -75,7 +75,7 @@ function renderProfile(container, profile, friendsOnline = null) {
       </div>
       <div class="stat-card" id="friends-online-card">
         <div class="label">Amis en ligne</div>
-        <div class="value">—</div>
+        <div class="value"><span class="loading-inline"></span></div>
       </div>
     </div>
 
@@ -117,6 +117,14 @@ export async function render(container) {
     }
     profileCache = res.data;
     renderProfile(container, profileCache);
+
+    // Charger le compteur d'amis en ligne depuis le cache (pas de nouvel appel lourd)
+    window.psnAPI.getFriends(100).then((friendsRes) => {
+      if (!friendsRes.ok) return;
+      const onlineCount = friendsRes.data.friends.filter((f) => f.presence?.isOnline).length;
+      const card = document.getElementById("friends-online-card");
+      if (card) card.querySelector(".value").textContent = onlineCount;
+    }).catch(() => {});
   } catch (err) {
     container.innerHTML = `<div class="error-state"><p>Erreur : ${err.message}</p></div>`;
   }
