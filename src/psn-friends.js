@@ -45,14 +45,22 @@ function mapPresence(rawResponse) {
   };
 }
 
-// Batch les requêtes par petits groupes avec pause entre chaque
+// Batch les requêtes par petits groupes avec pause entre chaque.
+// S'arrête dès qu'un batch a trop d'échecs (rate limit probable).
 async function batchProcess(items, fn, batchSize = 3) {
   const results = [];
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     const batchResults = await Promise.all(batch.map(fn));
     results.push(...batchResults);
-    // Pause 1.5s entre chaque batch pour ne pas saturer l'API
+
+    // Si tout le batch a échoué → rate limit, on arrête
+    const failures = batchResults.filter((r) => r._failed).length;
+    if (failures === batch.length && batch.length > 1) {
+      console.log(`[friends] Batch entier en échec, arrêt (${results.length}/${items.length} traités)`);
+      break;
+    }
+
     if (i + batchSize < items.length) {
       await new Promise((r) => setTimeout(r, 1500));
     }
@@ -89,12 +97,22 @@ export async function fetchFriends(limit = 50) {
         onlineId: "(profil privé / inaccessible)",
         avatarUrl: null,
         presence: null,
+        _failed: true,
       };
     }
   });
 
+  // Filtrer le flag interne
+  const cleanProfiles = profiles.map(({ _failed, ...rest }) => rest);
+
+  // Si plus de 50% d'échecs, ne pas retourner de données pourries
+  const failCount = profiles.filter((p) => p._failed).length;
+  if (failCount > profiles.length * 0.5) {
+    throw new Error(`Trop d'échecs (${failCount}/${profiles.length}) — rate limit probable`);
+  }
+
   return {
     total: friendsResult.totalItemCount ?? friendsAccountIds.length,
-    friends: profiles,
+    friends: cleanProfiles,
   };
 }
