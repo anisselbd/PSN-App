@@ -390,16 +390,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  background: #eab308;
-  color: #000;
-  font-size: 11px;
-  font-weight: 800;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #f5c518, #daa600);
   margin-left: 5px;
   vertical-align: middle;
-  line-height: 1;
+  box-shadow: 0 1px 3px rgba(234, 179, 8, 0.3);
 }
 
 .friend-status {

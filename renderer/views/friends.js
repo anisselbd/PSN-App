@@ -84,7 +84,7 @@ function renderFriendCard(friend) {
     ? `<span class="friend-platform">${platform.toUpperCase()}</span>`
     : "";
 
-  const plusBadge = friend.isPlus ? `<span class="ps-plus-badge">+</span>` : "";
+  const plusBadge = friend.isPlus ? `<span class="ps-plus-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="#000"><path d="M20 11h-7V4h-2v7H4v2h7v7h2v-7h7z"/></svg></span>` : "";
 
   const realNameHtml = friend.realName
     ? `<div class="friend-realname">${friend.realName}</div>`
