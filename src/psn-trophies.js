@@ -103,3 +103,72 @@ export async function fetchTrophiesForTitle(npCommunicationId, npServiceName) {
 
   return { trophies, groups };
 }
+
+/**
+ * Compare les trophées d'un jeu entre l'utilisateur connecté et un autre joueur.
+ */
+export async function compareTrophies(npCommunicationId, npServiceName, otherAccountId) {
+  const auth = await getAuthorization();
+  const myAccountId = getMyAccountId();
+  const serviceName = npServiceName === "trophy" ? "trophy" : "trophy2";
+
+  const [titleTrophies, myEarned, otherEarned] = await Promise.all([
+    withRetry(() => getTitleTrophies(auth, npCommunicationId, "all", {
+      npServiceName: serviceName,
+    })),
+    withRetry(() => getUserTrophiesEarnedForTitle(
+      auth, myAccountId, npCommunicationId, "all",
+      { npServiceName: serviceName }
+    )),
+    withRetry(() => getUserTrophiesEarnedForTitle(
+      auth, otherAccountId, npCommunicationId, "all",
+      { npServiceName: serviceName }
+    )),
+  ]);
+
+  const myMap = new Map();
+  for (const t of myEarned.trophies ?? []) myMap.set(t.trophyId, t);
+
+  const otherMap = new Map();
+  for (const t of otherEarned.trophies ?? []) otherMap.set(t.trophyId, t);
+
+  const trophies = (titleTrophies.trophies ?? []).map((t) => {
+    const me = myMap.get(t.trophyId);
+    const other = otherMap.get(t.trophyId);
+    return {
+      trophyId: t.trophyId,
+      name: t.trophyName,
+      detail: t.trophyDetail,
+      type: t.trophyType,
+      iconUrl: t.trophyIconUrl,
+      hidden: t.trophyHidden,
+      earnedRate: t.trophyEarnedRate,
+      meEarned: me?.earned ?? false,
+      meEarnedDate: me?.earnedDateTime ?? null,
+      otherEarned: other?.earned ?? false,
+      otherEarnedDate: other?.earnedDateTime ?? null,
+    };
+  });
+
+  return { trophies };
+}
+
+/**
+ * Récupère les titres trophées d'un autre joueur (pour trouver les jeux en commun).
+ */
+export async function fetchPlayerTrophyTitles(accountId, offset = 0, limit = 100) {
+  const auth = await getAuthorization();
+
+  const res = await withRetry(() => getUserTitles(auth, accountId, { offset, limit }));
+
+  return (res.trophyTitles ?? []).map((t) => ({
+    npCommunicationId: t.npCommunicationId,
+    npServiceName: t.npServiceName,
+    name: t.trophyTitleName,
+    iconUrl: t.trophyTitleIconUrl,
+    platform: t.trophyTitlePlatform,
+    progress: t.progress,
+    earned: t.earnedTrophies,
+    defined: t.definedTrophies,
+  }));
+}

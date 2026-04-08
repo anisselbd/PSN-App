@@ -84,6 +84,9 @@ function renderFriendCard(friend) {
         <div class="friend-status ${isOnline ? "online" : ""}">${text}</div>
         ${gameHtml}
       </div>
+      <button class="compare-btn" data-account-id="${friend.accountId}" data-online-id="${friend.onlineId}" title="Comparer les trophees">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      </button>
       ${platformHtml}
     </div>
   `;
@@ -111,6 +114,14 @@ function renderFriendsList(container) {
       }</p></div>`;
     } else {
       grid.innerHTML = filtered.map(renderFriendCard).join("");
+
+      // Compare button handlers
+      grid.querySelectorAll(".compare-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          window.__startCompare(btn.dataset.accountId, btn.dataset.onlineId);
+        });
+      });
     }
   }
 }

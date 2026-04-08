@@ -14,4 +14,11 @@ contextBridge.exposeInMainWorld("psnAPI", {
     ipcRenderer.invoke("psn:searchPlayers", query),
   getPlayerProfile: (accountId) =>
     ipcRenderer.invoke("psn:getPlayerProfile", accountId),
+  getPlayerTrophyTitles: (accountId) =>
+    ipcRenderer.invoke("psn:getPlayerTrophyTitles", accountId),
+  compareTrophies: (npCommunicationId, npServiceName, otherAccountId) =>
+    ipcRenderer.invoke("psn:compareTrophies", npCommunicationId, npServiceName, otherAccountId),
+  onPresenceUpdate: (callback) => {
+    ipcRenderer.on("psn:presenceUpdate", (_event, data) => callback(data));
+  },
 });

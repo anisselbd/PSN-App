@@ -4,6 +4,7 @@ import { render as renderFriends } from "./views/friends.js";
 import { render as renderTrophies } from "./views/trophies.js";
 import { render as renderLibrary } from "./views/library.js";
 import { render as renderSearch } from "./views/search.js";
+import { render as renderCompare, startCompare } from "./views/compare.js";
 
 const views = {
   dashboard: renderDashboard,
@@ -11,6 +12,7 @@ const views = {
   trophies: renderTrophies,
   library: renderLibrary,
   search: renderSearch,
+  compare: renderCompare,
 };
 
 let currentView = "dashboard";
@@ -28,6 +30,13 @@ function navigate(viewName) {
   const content = document.getElementById("content");
   views[viewName](content);
 }
+
+// Expose navigate globalement pour les vues
+window.__navigate = navigate;
+window.__startCompare = (accountId, onlineId) => {
+  startCompare(accountId, onlineId);
+  navigate("compare");
+};
 
 // Nav click handlers
 document.querySelectorAll(".nav-item").forEach((btn) => {
