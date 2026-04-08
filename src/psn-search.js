@@ -53,10 +53,13 @@ export async function fetchPlayerProfile(accountId) {
     if (!avatarUrl) avatarUrl = avatars[0].url ?? null;
   }
 
-  const game = presence?.gameTitleInfoList?.[0] ?? null;
+  // L'API retourne { basicPresence: { ... } }
+  const p = presence?.basicPresence ?? presence;
+  const game = p?.gameTitleInfoList?.[0] ?? null;
   const isOnline =
-    presence?.primaryPlatformInfo?.onlineStatus === "online" ||
-    presence?.availability === "available" ||
+    p?.primaryPlatformInfo?.onlineStatus === "online" ||
+    p?.availability === "availableToPlay" ||
+    p?.availability === "available" ||
     !!game;
 
   return {
@@ -68,11 +71,11 @@ export async function fetchPlayerProfile(accountId) {
     languages: profile?.languages ?? [],
     presence: {
       isOnline,
-      platform: presence?.primaryPlatformInfo?.platform ?? game?.format ?? null,
+      platform: p?.primaryPlatformInfo?.platform ?? game?.format ?? null,
       titleName: game?.titleName ?? null,
       lastOnlineDate:
-        presence?.primaryPlatformInfo?.lastOnlineDate ??
-        presence?.lastAvailableDate ??
+        p?.primaryPlatformInfo?.lastOnlineDate ??
+        p?.lastAvailableDate ??
         null,
     },
     trophySummary: trophySummary

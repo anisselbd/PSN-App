@@ -7,37 +7,28 @@ import {
 import { getAuthorization, withRetry } from "./psn-auth.js";
 import { extractOnlineId, extractAvatarUrl } from "./psn-profile.js";
 
-function mapPresence(basicPresence) {
-  if (!basicPresence) return null;
+function mapPresence(rawResponse) {
+  if (!rawResponse) return null;
 
-  const game = basicPresence.gameTitleInfoList?.[0] ?? null;
+  // L'API retourne { basicPresence: { ... } } — il faut unwrap
+  const p = rawResponse.basicPresence ?? rawResponse;
 
-  const availability =
-    basicPresence.availability ??
-    basicPresence.primaryPlatformInfo?.availability ??
-    null;
+  const game = p.gameTitleInfoList?.[0] ?? null;
 
-  const rawOnlineStatus =
-    basicPresence.onlineStatus ??
-    basicPresence.primaryPlatformInfo?.onlineStatus ??
-    null;
+  const availability = p.availability ?? null;
+  const rawOnlineStatus = p.primaryPlatformInfo?.onlineStatus ?? null;
 
   const hasGame =
-    Array.isArray(basicPresence.gameTitleInfoList) &&
-    basicPresence.gameTitleInfoList.length > 0;
+    Array.isArray(p.gameTitleInfoList) && p.gameTitleInfoList.length > 0;
 
   const isOnline =
-    basicPresence.isOnline === true ||
-    basicPresence.primaryPlatformInfo?.isOnline === true ||
     rawOnlineStatus === "online" ||
+    availability === "availableToPlay" ||
     availability === "available" ||
     hasGame;
 
   const platform =
-    basicPresence.primaryPlatformInfo?.platform ??
-    basicPresence.platform ??
-    game?.format ??
-    null;
+    p.primaryPlatformInfo?.platform ?? game?.format ?? null;
 
   return {
     availability,
@@ -45,9 +36,8 @@ function mapPresence(basicPresence) {
     isOnline,
     platform,
     lastOnlineDate:
-      basicPresence.lastOnlineDate ??
-      basicPresence.primaryPlatformInfo?.lastOnlineDate ??
-      basicPresence.lastAvailableDate ??
+      p.primaryPlatformInfo?.lastOnlineDate ??
+      p.lastAvailableDate ??
       null,
     titleName: game?.titleName ?? null,
     titleFormat: game?.format ?? null,
