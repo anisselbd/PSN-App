@@ -1,12 +1,39 @@
 // src/psn-friends.js
-// Stratégie hybride :
-// 1. Endpoint legacy pour charger 74 profils en 1 appel
-// 2. API moderne getBasicPresence pour la présence exacte (quelques appels de plus)
+// Stratégie : endpoint legacy pour profils + présence en 1 appel.
+// Si la présence legacy détecte des amis "online", on enrichit avec l'API moderne
+// pour avoir le jeu en cours (quelques appels seulement, pas tous).
 
 import { call, getBasicPresence } from "psn-api";
 import { getAuthorization, withRetry } from "./psn-auth.js";
 
 const LEGACY_BASE = "https://us-prof.np.community.playstation.net/userProfile/v1/users";
+
+function mapLegacyPresence(presences) {
+  if (!Array.isArray(presences) || presences.length === 0) return null;
+
+  // Chercher une présence "online"
+  const online = presences.find((p) => p.onlineStatus === "online");
+  const primary = online ?? presences[0];
+
+  const onlineStatus = primary?.onlineStatus ?? null;
+  const platform = primary?.platform ?? null;
+  const lastOnlineDate = primary?.lastOnlineDate ?? null;
+  const isOnline = onlineStatus === "online";
+
+  // Le legacy peut retourner le jeu via titleInfo
+  const titleName = primary?.titleName ?? primary?.npTitleId ?? null;
+
+  return {
+    availability: isOnline ? "available" : "unavailable",
+    onlineStatus,
+    isOnline,
+    platform,
+    lastOnlineDate,
+    titleName: titleName && titleName !== primary?.npTitleId ? titleName : null,
+    titleFormat: platform ?? null,
+    titleIconUrl: null,
+  };
+}
 
 function mapModernPresence(rawResponse) {
   if (!rawResponse) return null;
@@ -35,49 +62,15 @@ function extractAvatarFromLegacy(avatarUrls) {
   return avatarUrls[avatarUrls.length - 1]?.avatarUrl ?? avatarUrls[0]?.url ?? null;
 }
 
-/**
- * Récupère les présences modernes pour une liste d'accountIds.
- * Batch de 5 avec pause de 1s pour rester dans les limites.
- */
-async function fetchPresenceBatch(auth, accountIds) {
-  const presenceMap = new Map();
-
-  for (let i = 0; i < accountIds.length; i += 5) {
-    const batch = accountIds.slice(i, i + 5);
-    const results = await Promise.all(
-      batch.map(async (id) => {
-        try {
-          const raw = await withRetry(() => getBasicPresence(auth, id));
-          return { id, presence: mapModernPresence(raw) };
-        } catch {
-          return { id, presence: null };
-        }
-      })
-    );
-    for (const r of results) presenceMap.set(r.id, r.presence);
-
-    if (i + 5 < accountIds.length) {
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-  }
-
-  return presenceMap;
-}
-
-/**
- * Stratégie hybride :
- * 1. Legacy endpoint → tous les profils en 1 appel
- * 2. API moderne → présence pour tous les amis (par batch de 5)
- */
 export async function fetchFriends(limit = 100) {
   const auth = await getAuthorization();
 
-  // === Étape 1 : charger tous les profils via legacy ===
+  // === Étape 1 : legacy — profils + présence en 1 appel ===
   let friends = [];
   let total = 0;
 
   try {
-    const url = `${LEGACY_BASE}/me/friends/profiles2?fields=onlineId,accountId,avatarUrls,plus,personalDetail(firstName,lastName)&sort=name-onlineId&offset=0&limit=${limit}`;
+    const url = `${LEGACY_BASE}/me/friends/profiles2?fields=onlineId,accountId,avatarUrls,plus,personalDetail(firstName,lastName),presences(@default,@titleInfo,platform,lastOnlineDate,hasBroadcastData)&sort=name-onlineId&offset=0&limit=${limit}`;
 
     const response = await withRetry(() => call({ url }, auth));
 
@@ -93,37 +86,46 @@ export async function fetchFriends(limit = 100) {
           realName,
           avatarUrl: extractAvatarFromLegacy(p.avatarUrls),
           isPlus: p.plus === 1 || p.plus === true,
-          presence: null, // sera rempli à l'étape 2
+          presence: mapLegacyPresence(p.presences),
         };
       });
 
       total = response.totalResults ?? friends.length;
-      console.log(`[friends] Legacy: ${friends.length} profils en 1 appel`);
+      const legacyOnline = friends.filter((f) => f.presence?.isOnline).length;
+      console.log(`[friends] Legacy: ${friends.length} amis, ${legacyOnline} en ligne`);
     }
   } catch (err) {
     console.warn("[friends] Legacy failed:", err.message);
-    // Fallback simple
-    const { getUserFriendsAccountIds } = await import("psn-api");
-    const res = await withRetry(() => getUserFriendsAccountIds(auth, "me"));
-    friends = (res.friends || []).slice(0, limit).map((id) => ({
-      accountId: id, onlineId: id, realName: null, avatarUrl: null, isPlus: false, presence: null,
-    }));
-    total = res.totalItemCount ?? friends.length;
+    throw err;
   }
 
-  // === Étape 2 : présence moderne pour tous les amis ===
-  const accountIds = friends.map((f) => f.accountId).filter(Boolean);
+  // === Étape 2 : enrichir SEULEMENT les amis en ligne avec la présence moderne ===
+  // (pour avoir le nom du jeu + icône — quelques appels seulement)
+  const onlineFriends = friends.filter((f) => f.presence?.isOnline);
 
-  if (accountIds.length > 0) {
+  if (onlineFriends.length > 0 && onlineFriends.length <= 20) {
     try {
-      const presenceMap = await fetchPresenceBatch(auth, accountIds);
-      for (const friend of friends) {
-        friend.presence = presenceMap.get(friend.accountId) ?? null;
+      const results = await Promise.all(
+        onlineFriends.map(async (friend) => {
+          try {
+            const raw = await withRetry(() => getBasicPresence(auth, friend.accountId));
+            return { accountId: friend.accountId, presence: mapModernPresence(raw) };
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      for (const r of results) {
+        if (!r?.presence) continue;
+        const friend = friends.find((f) => f.accountId === r.accountId);
+        if (friend) friend.presence = r.presence;
       }
-      const onlineCount = friends.filter((f) => f.presence?.isOnline).length;
-      console.log(`[friends] Presence: ${onlineCount} en ligne sur ${friends.length}`);
+
+      console.log(`[friends] Presence moderne: ${results.filter(Boolean).length} enrichis`);
     } catch (err) {
-      console.warn("[friends] Presence batch failed:", err.message);
+      console.warn("[friends] Presence moderne failed, on garde le legacy:", err.message);
+      // On garde la présence legacy — pas de perte de données
     }
   }
 
