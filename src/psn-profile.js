@@ -4,7 +4,7 @@ import {
   getUserTrophyProfileSummary,
   getRecentlyPlayedGames,
 } from "psn-api";
-import { getAuthorization, getMyAccountId } from "./psn-auth.js";
+import { getAuthorization, getMyAccountId, withRetry } from "./psn-auth.js";
 
 function extractOnlineId(profile) {
   return (
@@ -38,9 +38,9 @@ export async function fetchMyProfile() {
   const accountId = getMyAccountId();
 
   const [profile, trophySummary, recentGames] = await Promise.all([
-    getProfileFromAccountId(auth, accountId),
-    getUserTrophyProfileSummary(auth, accountId).catch(() => null),
-    getRecentlyPlayedGames(auth, { limit: 5 }).catch(() => null),
+    withRetry(() => getProfileFromAccountId(auth, accountId)),
+    withRetry(() => getUserTrophyProfileSummary(auth, accountId)).catch(() => null),
+    withRetry(() => getRecentlyPlayedGames(auth, { limit: 5 })).catch(() => null),
   ]);
 
   return {

@@ -5,7 +5,7 @@ import {
   getUserTrophiesEarnedForTitle,
   getTitleTrophyGroups,
 } from "psn-api";
-import { getAuthorization, getMyAccountId } from "./psn-auth.js";
+import { getAuthorization, getMyAccountId, withRetry } from "./psn-auth.js";
 
 /**
  * Liste tous les jeux avec progression trophées de l'utilisateur.
@@ -15,7 +15,7 @@ export async function fetchTrophyTitles(offset = 0, limit = 50) {
   const auth = await getAuthorization();
   const accountId = getMyAccountId();
 
-  const res = await getUserTitles(auth, accountId, { offset, limit });
+  const res = await withRetry(() => getUserTitles(auth, accountId, { offset, limit }));
 
   const titles = (res.trophyTitles ?? []).map((t) => ({
     npCommunicationId: t.npCommunicationId,
@@ -49,19 +49,19 @@ export async function fetchTrophiesForTitle(npCommunicationId, npServiceName) {
   const serviceName = npServiceName === "trophy" ? "trophy" : "trophy2";
 
   const [titleTrophies, earnedTrophies, trophyGroups] = await Promise.all([
-    getTitleTrophies(auth, npCommunicationId, "all", {
+    withRetry(() => getTitleTrophies(auth, npCommunicationId, "all", {
       npServiceName: serviceName,
-    }),
-    getUserTrophiesEarnedForTitle(
+    })),
+    withRetry(() => getUserTrophiesEarnedForTitle(
       auth,
       accountId,
       npCommunicationId,
       "all",
       { npServiceName: serviceName }
-    ),
-    getTitleTrophyGroups(auth, npCommunicationId, {
+    )),
+    withRetry(() => getTitleTrophyGroups(auth, npCommunicationId, {
       npServiceName: serviceName,
-    }).catch(() => null),
+    })).catch(() => null),
   ]);
 
   // Index des trophées gagnés par trophyId

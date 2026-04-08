@@ -4,7 +4,7 @@ import {
   getProfileFromAccountId,
   getBasicPresence,
 } from "psn-api";
-import { getAuthorization } from "./psn-auth.js";
+import { getAuthorization, withRetry } from "./psn-auth.js";
 import { extractOnlineId, extractAvatarUrl } from "./psn-profile.js";
 
 function mapPresence(basicPresence) {
@@ -72,15 +72,15 @@ async function batchProcess(items, fn, batchSize = 8) {
 export async function fetchFriends(limit = 50) {
   const auth = await getAuthorization();
 
-  const friendsResult = await getUserFriendsAccountIds(auth, "me");
+  const friendsResult = await withRetry(() => getUserFriendsAccountIds(auth, "me"));
   const friendsAccountIds = friendsResult.friends || [];
   const sliced = friendsAccountIds.slice(0, limit);
 
   const profiles = await batchProcess(sliced, async (accountId) => {
     try {
       const [profile, basicPresence] = await Promise.all([
-        getProfileFromAccountId(auth, accountId),
-        getBasicPresence(auth, accountId),
+        withRetry(() => getProfileFromAccountId(auth, accountId)),
+        withRetry(() => getBasicPresence(auth, accountId)),
       ]);
 
       return {

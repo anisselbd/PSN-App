@@ -1,6 +1,6 @@
 // src/psn-games.js
 import { getUserPlayedGames, getRecentlyPlayedGames } from "psn-api";
-import { getAuthorization, getMyAccountId } from "./psn-auth.js";
+import { getAuthorization, getMyAccountId, withRetry } from "./psn-auth.js";
 
 /**
  * Jeux joués par l'utilisateur avec stats détaillées (temps, dates, etc.)
@@ -9,7 +9,7 @@ export async function fetchPlayedGames(offset = 0, limit = 50) {
   const auth = await getAuthorization();
   const accountId = getMyAccountId();
 
-  const res = await getUserPlayedGames(auth, accountId, { offset, limit });
+  const res = await withRetry(() => getUserPlayedGames(auth, accountId, { offset, limit }));
 
   const titles = (res.titles ?? []).map((t) => ({
     titleId: t.titleId,
@@ -38,7 +38,7 @@ export async function fetchPlayedGames(offset = 0, limit = 50) {
 export async function fetchRecentlyPlayed(limit = 12) {
   const auth = await getAuthorization();
 
-  const res = await getRecentlyPlayedGames(auth, { limit });
+  const res = await withRetry(() => getRecentlyPlayedGames(auth, { limit }));
   const games = res?.data?.gameLibraryTitlesRetrieve?.games ?? [];
 
   return games.map((g) => ({

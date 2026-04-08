@@ -1,5 +1,8 @@
 // src/psn-auth.js
 import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   exchangeNpssoForAccessCode,
   exchangeAccessCodeForAuthTokens,
@@ -13,10 +16,25 @@ if (!npsso) {
   process.exit(1);
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TOKEN_FILE = path.join(__dirname, "..", ".psn-tokens.json");
+
 let cachedTokens = null;
 let tokenExpiresAt = 0;
 let refreshTokenExpiresAt = 0;
 let myAccountId = null;
+
+// Charger les tokens depuis le disque au démarrage
+try {
+  if (fs.existsSync(TOKEN_FILE)) {
+    const saved = JSON.parse(fs.readFileSync(TOKEN_FILE, "utf-8"));
+    cachedTokens = saved.tokens;
+    tokenExpiresAt = saved.tokenExpiresAt;
+    refreshTokenExpiresAt = saved.refreshTokenExpiresAt;
+    myAccountId = saved.myAccountId;
+    console.log("[auth] Tokens chargés depuis le cache disque");
+  }
+} catch {}
 
 /**
  * Retourne un objet { accessToken } valide,
@@ -67,6 +85,19 @@ function cacheTokens(tokens) {
       myAccountId = payload.sub ?? payload.account_id ?? null;
     } catch {}
   }
+
+  // Persister sur disque
+  try {
+    fs.writeFileSync(
+      TOKEN_FILE,
+      JSON.stringify({
+        tokens,
+        tokenExpiresAt,
+        refreshTokenExpiresAt,
+        myAccountId,
+      })
+    );
+  } catch {}
 }
 
 /**
@@ -75,4 +106,26 @@ function cacheTokens(tokens) {
  */
 export function getMyAccountId() {
   return myAccountId;
+}
+
+/**
+ * Wrapper avec retry automatique pour les appels API rate-limités.
+ */
+export async function withRetry(fn, maxRetries = 3) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const is429 =
+        err.message?.includes("Too Many Requests") ||
+        err.message?.includes("429");
+      if (is429 && attempt < maxRetries) {
+        const delay = (attempt + 1) * 2000;
+        console.log(`[retry] Rate limited, attente ${delay}ms...`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
