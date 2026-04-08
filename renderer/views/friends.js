@@ -84,6 +84,12 @@ function renderFriendCard(friend) {
     ? `<span class="friend-platform">${platform.toUpperCase()}</span>`
     : "";
 
+  const plusBadge = friend.isPlus ? `<span class="ps-plus-badge">+</span>` : "";
+
+  const realNameHtml = friend.realName
+    ? `<div class="friend-realname">${friend.realName}</div>`
+    : "";
+
   const game = friend.presence?.titleName;
   const gameIcon = friend.presence?.titleIconUrl;
   const gameHtml = game
@@ -100,7 +106,8 @@ function renderFriendCard(friend) {
         ${onlineDot}
       </div>
       <div class="friend-info">
-        <div class="friend-name">${friend.onlineId}</div>
+        <div class="friend-name">${friend.onlineId}${plusBadge}</div>
+        ${realNameHtml}
         <div class="friend-status ${isOnline ? "online" : ""}">${text}</div>
         ${gameHtml}
       </div>

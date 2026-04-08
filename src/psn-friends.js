@@ -1,36 +1,12 @@
 // src/psn-friends.js
-// Utilise l'endpoint legacy friends/profiles2 qui retourne TOUS les amis
-// avec profils + présence en UN SEUL appel (au lieu de 149 appels).
+// Stratégie hybride :
+// 1. Endpoint legacy pour charger 74 profils en 1 appel
+// 2. API moderne getBasicPresence pour la présence exacte (quelques appels de plus)
 
-import { call } from "psn-api";
+import { call, getBasicPresence } from "psn-api";
 import { getAuthorization, withRetry } from "./psn-auth.js";
 
 const LEGACY_BASE = "https://us-prof.np.community.playstation.net/userProfile/v1/users";
-
-function mapLegacyPresence(presences) {
-  if (!Array.isArray(presences) || presences.length === 0) return null;
-
-  // Trouver la présence principale (primaryInfo ou la première)
-  const primary = presences.find((p) => p.hasBroadcastData !== undefined) ?? presences[0];
-
-  const onlineStatus = primary?.onlineStatus ?? null;
-  const platform = primary?.platform ?? null;
-  const titleName = primary?.npTitleId ? primary?.titleName : null;
-  const lastOnlineDate = primary?.lastOnlineDate ?? null;
-
-  const isOnline = onlineStatus === "online";
-
-  return {
-    availability: isOnline ? "available" : "unavailable",
-    onlineStatus,
-    isOnline,
-    platform,
-    lastOnlineDate,
-    titleName: titleName ?? null,
-    titleFormat: platform ?? null,
-    titleIconUrl: null,
-  };
-}
 
 function mapModernPresence(rawResponse) {
   if (!rawResponse) return null;
@@ -54,89 +30,102 @@ function mapModernPresence(rawResponse) {
 
 function extractAvatarFromLegacy(avatarUrls) {
   if (!Array.isArray(avatarUrls) || avatarUrls.length === 0) return null;
-  // Prendre la plus grande
   const preferred = avatarUrls.find((a) => a.size === "xl" || a.avatarUrlType === "xl");
   if (preferred) return preferred.avatarUrl ?? preferred.url ?? null;
   return avatarUrls[avatarUrls.length - 1]?.avatarUrl ?? avatarUrls[0]?.url ?? null;
 }
 
 /**
- * Récupère tous les amis avec profils + présence en UN SEUL appel legacy.
- * Fallback sur l'approche multi-appels si ça échoue.
+ * Récupère les présences modernes pour une liste d'accountIds.
+ * Batch de 5 avec pause de 1s pour rester dans les limites.
+ */
+async function fetchPresenceBatch(auth, accountIds) {
+  const presenceMap = new Map();
+
+  for (let i = 0; i < accountIds.length; i += 5) {
+    const batch = accountIds.slice(i, i + 5);
+    const results = await Promise.all(
+      batch.map(async (id) => {
+        try {
+          const raw = await withRetry(() => getBasicPresence(auth, id));
+          return { id, presence: mapModernPresence(raw) };
+        } catch {
+          return { id, presence: null };
+        }
+      })
+    );
+    for (const r of results) presenceMap.set(r.id, r.presence);
+
+    if (i + 5 < accountIds.length) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+
+  return presenceMap;
+}
+
+/**
+ * Stratégie hybride :
+ * 1. Legacy endpoint → tous les profils en 1 appel
+ * 2. API moderne → présence pour tous les amis (par batch de 5)
  */
 export async function fetchFriends(limit = 100) {
   const auth = await getAuthorization();
 
-  // === Tentative endpoint legacy (1 seul appel) ===
+  // === Étape 1 : charger tous les profils via legacy ===
+  let friends = [];
+  let total = 0;
+
   try {
-    const url = `${LEGACY_BASE}/me/friends/profiles2?fields=onlineId,accountId,avatarUrls,plus,primaryOnlineStatus,presences(@default,@titleInfo,platform,lastOnlineDate,hasBroadcastData)&sort=name-onlineId&offset=0&limit=${limit}`;
+    const url = `${LEGACY_BASE}/me/friends/profiles2?fields=onlineId,accountId,avatarUrls,plus,personalDetail(firstName,lastName)&sort=name-onlineId&offset=0&limit=${limit}`;
 
     const response = await withRetry(() => call({ url }, auth));
 
     if (response?.profiles) {
-      const friends = response.profiles.map((p) => ({
-        accountId: p.accountId ?? p.npId ?? "",
-        onlineId: p.onlineId ?? "(inconnu)",
-        avatarUrl: extractAvatarFromLegacy(p.avatarUrls),
-        presence: mapLegacyPresence(p.presences),
-      }));
+      friends = response.profiles.map((p) => {
+        const firstName = p.personalDetail?.firstName ?? null;
+        const lastName = p.personalDetail?.lastName ?? null;
+        const realName = firstName ? `${firstName} ${lastName ?? ""}`.trim() : null;
 
-      console.log(`[friends] Legacy endpoint: ${friends.length} amis en 1 appel`);
+        return {
+          accountId: p.accountId ?? p.npId ?? "",
+          onlineId: p.onlineId ?? "(inconnu)",
+          realName,
+          avatarUrl: extractAvatarFromLegacy(p.avatarUrls),
+          isPlus: p.plus === 1 || p.plus === true,
+          presence: null, // sera rempli à l'étape 2
+        };
+      });
 
-      return {
-        total: response.totalResults ?? friends.length,
-        friends,
-      };
+      total = response.totalResults ?? friends.length;
+      console.log(`[friends] Legacy: ${friends.length} profils en 1 appel`);
     }
   } catch (err) {
-    console.warn("[friends] Legacy endpoint failed, fallback multi-appels:", err.message);
+    console.warn("[friends] Legacy failed:", err.message);
+    // Fallback simple
+    const { getUserFriendsAccountIds } = await import("psn-api");
+    const res = await withRetry(() => getUserFriendsAccountIds(auth, "me"));
+    friends = (res.friends || []).slice(0, limit).map((id) => ({
+      accountId: id, onlineId: id, realName: null, avatarUrl: null, isPlus: false, presence: null,
+    }));
+    total = res.totalItemCount ?? friends.length;
   }
 
-  // === Fallback : approche classique multi-appels ===
-  const { getUserFriendsAccountIds, getProfileFromAccountId, getBasicPresence } = await import("psn-api");
+  // === Étape 2 : présence moderne pour tous les amis ===
+  const accountIds = friends.map((f) => f.accountId).filter(Boolean);
 
-  const friendsResult = await withRetry(() => getUserFriendsAccountIds(auth, "me"));
-  const friendsAccountIds = friendsResult.friends || [];
-  const sliced = friendsAccountIds.slice(0, limit);
-
-  const results = [];
-  for (let i = 0; i < sliced.length; i += 3) {
-    const batch = sliced.slice(i, i + 3);
-    const batchResults = await Promise.all(
-      batch.map(async (accountId) => {
-        try {
-          const [profile, basicPresence] = await Promise.all([
-            withRetry(() => getProfileFromAccountId(auth, accountId)),
-            withRetry(() => getBasicPresence(auth, accountId)),
-          ]);
-          return {
-            accountId,
-            onlineId: profile?.onlineId ?? "(inconnu)",
-            avatarUrl: extractAvatarFromLegacy(profile?.avatars),
-            presence: mapModernPresence(basicPresence),
-          };
-        } catch {
-          return { accountId, onlineId: "(inaccessible)", avatarUrl: null, presence: null, _failed: true };
-        }
-      })
-    );
-
-    results.push(...batchResults);
-
-    // Stop si tout le batch échoue
-    if (batchResults.every((r) => r._failed) && batch.length > 1) break;
-
-    if (i + 3 < sliced.length) await new Promise((r) => setTimeout(r, 2000));
+  if (accountIds.length > 0) {
+    try {
+      const presenceMap = await fetchPresenceBatch(auth, accountIds);
+      for (const friend of friends) {
+        friend.presence = presenceMap.get(friend.accountId) ?? null;
+      }
+      const onlineCount = friends.filter((f) => f.presence?.isOnline).length;
+      console.log(`[friends] Presence: ${onlineCount} en ligne sur ${friends.length}`);
+    } catch (err) {
+      console.warn("[friends] Presence batch failed:", err.message);
+    }
   }
 
-  const clean = results.map(({ _failed, ...rest }) => rest);
-  const failCount = results.filter((r) => r._failed).length;
-  if (failCount > results.length * 0.5) {
-    throw new Error(`Trop d'echecs (${failCount}/${results.length})`);
-  }
-
-  return {
-    total: friendsResult.totalItemCount ?? friendsAccountIds.length,
-    friends: clean,
-  };
+  return { total, friends };
 }

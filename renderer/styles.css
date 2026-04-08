@@ -380,6 +380,28 @@ body {
   text-overflow: ellipsis;
 }
 
+.friend-realname {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.ps-plus-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #eab308;
+  color: #000;
+  font-size: 11px;
+  font-weight: 800;
+  margin-left: 5px;
+  vertical-align: middle;
+  line-height: 1;
+}
+
 .friend-status {
   font-size: 12px;
   color: var(--text-secondary);
