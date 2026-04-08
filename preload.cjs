@@ -2,7 +2,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("psnAPI", {
-  getFriends: async (limit) => {
-    return await ipcRenderer.invoke("psn:getFriends", limit);
-  },
+  getFriends: (limit) => ipcRenderer.invoke("psn:getFriends", limit),
+  getMyProfile: () => ipcRenderer.invoke("psn:getMyProfile"),
 });
