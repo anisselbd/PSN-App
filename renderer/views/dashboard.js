@@ -75,7 +75,7 @@ function renderProfile(container, profile, friendsOnline = null) {
       </div>
       <div class="stat-card" id="friends-online-card">
         <div class="label">Amis en ligne</div>
-        <div class="value">${friendsOnline !== null ? friendsOnline : `<span class="loading-inline"></span>`}</div>
+        <div class="value">—</div>
       </div>
     </div>
 
@@ -110,25 +110,13 @@ export async function render(container) {
   `;
 
   try {
-    if (!profileCache) {
-      const res = await window.psnAPI.getMyProfile();
-      if (!res.ok) {
-        container.innerHTML += `<div class="error-state"><p>Erreur : ${res.error}</p></div>`;
-        return;
-      }
-      profileCache = res.data;
+    const res = await window.psnAPI.getMyProfile();
+    if (!res.ok) {
+      container.innerHTML += `<div class="error-state"><p>Erreur : ${res.error}</p></div>`;
+      return;
     }
+    profileCache = res.data;
     renderProfile(container, profileCache);
-
-    // Charger le compteur d'amis en ligne en arrière-plan
-    window.psnAPI.getFriends(100).then((res) => {
-      if (!res.ok) return;
-      const onlineCount = res.data.friends.filter((f) => f.presence?.isOnline).length;
-      const card = document.getElementById("friends-online-card");
-      if (card) {
-        card.querySelector(".value").textContent = onlineCount;
-      }
-    }).catch(() => {});
   } catch (err) {
     container.innerHTML = `<div class="error-state"><p>Erreur : ${err.message}</p></div>`;
   }

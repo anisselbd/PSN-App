@@ -36,14 +36,20 @@ export function setCache(key, data) {
 }
 
 /**
- * Pattern stale-while-revalidate.
- * Retourne le cache immédiatement si dispo, puis lance le fetch en background.
- * Le callback onFresh est appelé quand les données fraîches arrivent.
+ * Pattern stale-while-revalidate avec TTL.
+ * - Si le cache a moins de maxAge ms → retourne le cache, pas de refresh
+ * - Si le cache est plus vieux → retourne le cache + refresh en background
+ * - Si pas de cache → attend le fetch
  */
-export async function staleWhileRevalidate(key, fetchFn, onFresh) {
+export async function staleWhileRevalidate(key, fetchFn, onFresh, maxAge = 5 * 60 * 1000) {
   const cached = getCache(key);
 
-  // Lancer le fetch en background
+  // Cache frais → pas besoin de refresh
+  if (cached && (Date.now() - cached.updatedAt) < maxAge) {
+    return { data: cached.data, fromCache: true };
+  }
+
+  // Cache périmé ou absent → lancer le fetch
   const refreshPromise = fetchFn()
     .then((freshData) => {
       setCache(key, freshData);
@@ -55,13 +61,13 @@ export async function staleWhileRevalidate(key, fetchFn, onFresh) {
       return null;
     });
 
-  // Si on a du cache, le retourner immédiatement
+  // Si on a du cache (périmé), le retourner immédiatement
   if (cached) {
     return { data: cached.data, fromCache: true, refreshPromise };
   }
 
-  // Pas de cache : attendre le fetch
+  // Pas de cache du tout : attendre le fetch
   const freshData = await refreshPromise;
   if (freshData === null) throw new Error("Impossible de charger les données");
-  return { data: freshData, fromCache: false, refreshPromise: null };
+  return { data: freshData, fromCache: false };
 }

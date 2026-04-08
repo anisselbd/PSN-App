@@ -55,13 +55,17 @@ function mapPresence(basicPresence) {
   };
 }
 
-// Batch les requêtes par groupes pour éviter le rate limiting
-async function batchProcess(items, fn, batchSize = 8) {
+// Batch les requêtes par petits groupes avec pause entre chaque
+async function batchProcess(items, fn, batchSize = 3) {
   const results = [];
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     const batchResults = await Promise.all(batch.map(fn));
     results.push(...batchResults);
+    // Pause 1.5s entre chaque batch pour ne pas saturer l'API
+    if (i + batchSize < items.length) {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
   }
   return results;
 }

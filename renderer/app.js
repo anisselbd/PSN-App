@@ -66,5 +66,13 @@ window.psnAPI.onFreshData(({ key }) => {
   views[currentView](content);
 });
 
+// Mettre à jour le compteur d'amis en ligne quand le monitor envoie des données
+window.psnAPI.onPresenceUpdate(({ onlineCount }) => {
+  const card = document.getElementById("friends-online-card");
+  if (card) {
+    card.querySelector(".value").textContent = onlineCount;
+  }
+});
+
 // Initial load
 navigate("dashboard");

@@ -3,7 +3,7 @@ import { Notification } from "electron";
 import { fetchFriends } from "./psn-friends.js";
 import { updateTrayMenu } from "./tray.js";
 
-const POLL_INTERVAL = 3 * 60 * 1000; // 3 minutes
+const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 let previousState = new Map(); // accountId -> { isOnline, titleName }
 let intervalId = null;
@@ -88,11 +88,11 @@ async function poll() {
 export function startMonitor(win) {
   mainWindow = win;
 
-  // Premier poll après 10s (laisser le temps à l'auth)
+  // Premier poll après 30s (laisser le temps à l'app de charger)
   setTimeout(() => {
     poll();
     intervalId = setInterval(poll, POLL_INTERVAL);
-  }, 10_000);
+  }, 30_000);
 }
 
 export function stopMonitor() {
