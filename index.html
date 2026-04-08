@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PSN Friends – Desktop</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        background: #0f172a;
+        color: #e5e7eb;
+      }
+      header {
+        padding: 16px 24px;
+        border-bottom: 1px solid #1f2937;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0;
+      }
+      button {
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: none;
+        background: #3b82f6;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      main {
+        padding: 16px 24px;
+      }
+      .status {
+        font-size: 14px;
+        margin-bottom: 12px;
+        opacity: 0.8;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .id {
+        font-size: 13px;
+        color: #9ca3af;
+      }
+      li {
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: #111827;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .friend-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 999px;
+        background: #1f2937;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .friend-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .friend-text {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .friend-name {
+        font-weight: 500;
+      }
+
+      .friend-status {
+        font-size: 13px;
+        color: #9ca3af;
+      }
+
+      .friend-id {
+        font-size: 11px;
+        color: #4b5563;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🎮 PSN Friends</h1>
+      <button id="refreshBtn">Rafraîchir</button>
+    </header>
+    <main>
+      <div class="status" id="status">
+        Clique sur "Rafraîchir" pour charger tes amis PSN.
+      </div>
+      <ul id="friendsList"></ul>
+    </main>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

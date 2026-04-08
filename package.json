@@ -1,0 +1,22 @@
+{
+  "name": "psn-friends-electron",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "psn:cli": "node src/psn-cli.mjs",
+    "dev": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "psn-api": "^2.16.0"
+  },
+  "devDependencies": {
+    "electron": "^39.2.2"
+  }
+}
