@@ -14,7 +14,7 @@ function renderTrophyCounts(earned) {
   `;
 }
 
-function renderProfile(container, profile) {
+function renderProfile(container, profile, friendsOnline = null) {
   const avatarHtml = profile.avatarUrl
     ? `<img class="profile-avatar" src="${profile.avatarUrl}" alt="" />`
     : `<div class="profile-avatar-empty"></div>`;
@@ -73,6 +73,10 @@ function renderProfile(container, profile) {
         <div class="label">Jeux récents</div>
         <div class="value">${profile.recentGames.length}</div>
       </div>
+      <div class="stat-card" id="friends-online-card">
+        <div class="label">Amis en ligne</div>
+        <div class="value">${friendsOnline !== null ? friendsOnline : `<span class="loading-inline"></span>`}</div>
+      </div>
     </div>
 
     ${recentGamesHtml}
@@ -115,6 +119,16 @@ export async function render(container) {
       profileCache = res.data;
     }
     renderProfile(container, profileCache);
+
+    // Charger le compteur d'amis en ligne en arrière-plan
+    window.psnAPI.getFriends(100).then((res) => {
+      if (!res.ok) return;
+      const onlineCount = res.data.friends.filter((f) => f.presence?.isOnline).length;
+      const card = document.getElementById("friends-online-card");
+      if (card) {
+        card.querySelector(".value").textContent = onlineCount;
+      }
+    }).catch(() => {});
   } catch (err) {
     container.innerHTML = `<div class="error-state"><p>Erreur : ${err.message}</p></div>`;
   }

@@ -1,10 +1,12 @@
 // renderer/app.js
 import { render as renderDashboard } from "./views/dashboard.js";
 import { render as renderFriends } from "./views/friends.js";
+import { render as renderTrophies } from "./views/trophies.js";
 
 const views = {
   dashboard: renderDashboard,
   friends: renderFriends,
+  trophies: renderTrophies,
 };
 
 let currentView = "dashboard";

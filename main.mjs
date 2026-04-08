@@ -4,6 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchFriends } from "./src/psn-friends.js";
 import { fetchMyProfile } from "./src/psn-profile.js";
+import {
+  fetchTrophyTitles,
+  fetchTrophiesForTitle,
+} from "./src/psn-trophies.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,6 +58,26 @@ ipcMain.handle("psn:getMyProfile", async () => {
     return { ok: true, data: result };
   } catch (err) {
     console.error("[ipc] psn:getMyProfile error:", err);
+    return { ok: false, error: err.message || "Erreur inconnue" };
+  }
+});
+
+ipcMain.handle("psn:getTrophyTitles", async (_event, offset = 0, limit = 50) => {
+  try {
+    const result = await fetchTrophyTitles(offset, limit);
+    return { ok: true, data: result };
+  } catch (err) {
+    console.error("[ipc] psn:getTrophyTitles error:", err);
+    return { ok: false, error: err.message || "Erreur inconnue" };
+  }
+});
+
+ipcMain.handle("psn:getTrophiesForTitle", async (_event, npCommunicationId, npServiceName) => {
+  try {
+    const result = await fetchTrophiesForTitle(npCommunicationId, npServiceName);
+    return { ok: true, data: result };
+  } catch (err) {
+    console.error("[ipc] psn:getTrophiesForTitle error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };
   }
 });
