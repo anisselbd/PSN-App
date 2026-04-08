@@ -54,9 +54,18 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => navigate(btn.dataset.view));
 });
 
-// Les données fraîches du background ne déclenchent plus de re-render auto.
-// Le cache est mis à jour silencieusement, les vues se rafraîchissent
-// via l'auto-refresh timer ou le bouton Rafraîchir.
+// Quand la présence moderne arrive en background, re-render la page amis une seule fois
+let presenceEnrichedHandled = false;
+window.psnAPI.onPresenceEnriched(() => {
+  if (presenceEnrichedHandled) return;
+  presenceEnrichedHandled = true;
+  setTimeout(() => { presenceEnrichedHandled = false; }, 30_000);
+
+  if (currentView === "friends") {
+    const content = document.getElementById("content");
+    views.friends(content);
+  }
+});
 
 // Mettre à jour le compteur d'amis en ligne quand le monitor envoie des données
 window.psnAPI.onPresenceUpdate(({ onlineCount }) => {

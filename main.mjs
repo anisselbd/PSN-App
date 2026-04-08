@@ -2,7 +2,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { fetchFriends } from "./src/psn-friends.js";
+import { fetchFriends, fetchFriendsLegacy, enrichPresence } from "./src/psn-friends.js";
 import { fetchMyProfile } from "./src/psn-profile.js";
 import {
   fetchTrophyTitles,
@@ -14,7 +14,7 @@ import { fetchPlayedGames } from "./src/psn-games.js";
 import { searchPlayers, fetchPlayerProfile } from "./src/psn-search.js";
 import { setupTray } from "./src/tray.js";
 import { startMonitor, stopMonitor, getActivityHistory } from "./src/presence-monitor.js";
-import { staleWhileRevalidate } from "./src/cache.js";
+import { staleWhileRevalidate, setCache } from "./src/cache.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,13 +75,29 @@ app.on("window-all-closed", () => {
 
 // === IPC Handlers avec cache stale-while-revalidate ===
 
-ipcMain.handle("psn:getFriends", async (_event, limit = 50) => {
+// Chargement en 2 temps :
+// getFriends retourne le legacy instantanément (1 appel),
+// puis lance l'enrichissement en background et met à jour le cache
+ipcMain.handle("psn:getFriends", async (_event, limit = 100) => {
   try {
     const { data, fromCache } = await staleWhileRevalidate(
       `friends-${limit}`,
-      () => fetchFriends(limit),
-      null // pas de callback — le cache se met à jour silencieusement
+      () => fetchFriendsLegacy(limit),
+      null,
+      5 * 60 * 1000
     );
+
+    // Si les données viennent du cache ET ont déjà la présence moderne, c'est bon
+    const hasModern = data.friends?.some((f) => f.presence && !f.presence._isLegacy);
+    if (!hasModern && !fromCache) {
+      // Enrichir en background — ne bloque pas la réponse
+      enrichPresence([...data.friends]).then((enriched) => {
+        setCache(`friends-${limit}`, { total: data.total, friends: enriched });
+        // Notifier le renderer
+        sendToRenderer("psn:presenceEnriched", { onlineCount: enriched.filter((f) => f.presence?.isOnline).length });
+      }).catch(() => {});
+    }
+
     return { ok: true, data, fromCache };
   } catch (err) {
     console.error("[ipc] psn:getFriends error:", err);

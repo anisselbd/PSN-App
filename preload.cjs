@@ -25,4 +25,7 @@ contextBridge.exposeInMainWorld("psnAPI", {
   onFreshData: (callback) => {
     ipcRenderer.on("psn:freshData", (_event, data) => callback(data));
   },
+  onPresenceEnriched: (callback) => {
+    ipcRenderer.on("psn:presenceEnriched", (_event, data) => callback(data));
+  },
 });
