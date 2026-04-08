@@ -25,75 +25,101 @@ function drawRoundRect(ctx, x, y, w, h, r) {
 }
 
 async function generateCard(profile) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 600;
-  canvas.height = 340;
-  const ctx = canvas.getContext("2d");
+  const W = 700;
+  const H = 400;
+  const dpr = window.devicePixelRatio || 2;
 
-  // Background gradient
-  const grad = ctx.createLinearGradient(0, 0, 600, 340);
-  grad.addColorStop(0, "#0a0f1e");
-  grad.addColorStop(1, "#0f172a");
-  drawRoundRect(ctx, 0, 0, 600, 340, 20);
+  const canvas = document.createElement("canvas");
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  // === Background ===
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, "#06080f");
+  grad.addColorStop(0.5, "#0c1424");
+  grad.addColorStop(1, "#0a1020");
+  drawRoundRect(ctx, 0, 0, W, H, 24);
   ctx.fillStyle = grad;
   ctx.fill();
 
+  // Subtle glow top-right
+  const glow = ctx.createRadialGradient(W - 80, 60, 0, W - 80, 60, 250);
+  glow.addColorStop(0, "rgba(0, 111, 205, 0.08)");
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
   // Border
-  drawRoundRect(ctx, 0, 0, 600, 340, 20);
-  ctx.strokeStyle = "rgba(59, 158, 255, 0.3)";
-  ctx.lineWidth = 2;
+  drawRoundRect(ctx, 0, 0, W, H, 24);
+  ctx.strokeStyle = "rgba(59, 158, 255, 0.2)";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Avatar
+  // === Avatar ===
+  const avatarSize = 80;
+  const avatarX = 48;
+  const avatarY = 48;
   try {
     if (profile.avatarUrl) {
       const avatar = await loadImage(profile.avatarUrl);
       ctx.save();
       ctx.beginPath();
-      ctx.arc(80, 80, 40, 0, Math.PI * 2);
+      ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
       ctx.closePath();
       ctx.clip();
-      ctx.drawImage(avatar, 40, 40, 80, 80);
+      ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
       ctx.restore();
 
-      // Avatar border
+      // Ring
       ctx.beginPath();
-      ctx.arc(80, 80, 42, 0, Math.PI * 2);
-      ctx.strokeStyle = "#3b9eff";
-      ctx.lineWidth = 3;
+      ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = "#006FCD";
+      ctx.lineWidth = 2.5;
       ctx.stroke();
     }
   } catch {}
 
-  // Username
+  // === Username ===
   ctx.fillStyle = "#f1f5f9";
-  ctx.font = "bold 24px -apple-system, system-ui, sans-serif";
-  ctx.fillText(profile.onlineId, 140, 72);
+  ctx.font = "bold 28px -apple-system, 'SF Pro Display', system-ui, sans-serif";
+  ctx.fillText(profile.onlineId, avatarX + avatarSize + 24, avatarY + 36);
 
-  // PS Plus badge
+  // Badges
+  let badgeX = avatarX + avatarSize + 24;
+  const badgeY = avatarY + 60;
+  ctx.font = "600 13px -apple-system, system-ui, sans-serif";
+
   if (profile.isPlus) {
+    drawRoundRect(ctx, badgeX, badgeY - 13, 50, 22, 11);
+    ctx.fillStyle = "rgba(234, 179, 8, 0.15)";
+    ctx.fill();
     ctx.fillStyle = "#eab308";
-    ctx.font = "bold 12px -apple-system, system-ui, sans-serif";
-    const nameWidth = ctx.measureText(profile.onlineId).width;
-    ctx.fillText("PS+", 140 + 24 + 8, 72);
+    ctx.fillText("PS Plus", badgeX + 6, badgeY + 3);
+    badgeX += 60;
   }
 
-  // Trophy level
   if (profile.trophySummary) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "14px -apple-system, system-ui, sans-serif";
-    ctx.fillText(`Niveau trophee ${profile.trophySummary.level}`, 140, 98);
+    drawRoundRect(ctx, badgeX, badgeY - 13, 90, 22, 11);
+    ctx.fillStyle = "rgba(59, 158, 255, 0.12)";
+    ctx.fill();
+    ctx.fillStyle = "#3b9eff";
+    ctx.fillText(`Niveau ${profile.trophySummary.level}`, badgeX + 8, badgeY + 3);
   }
 
-  // Divider
-  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  // === Divider ===
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(40, 145);
-  ctx.lineTo(560, 145);
+  ctx.moveTo(48, 155);
+  ctx.lineTo(W - 48, 155);
   ctx.stroke();
 
-  // Trophy stats
+  // === Trophy Stats ===
   if (profile.trophySummary?.earned) {
     const e = profile.trophySummary.earned;
     const trophies = [
@@ -103,47 +129,71 @@ async function generateCard(profile) {
       { label: "Bronze", count: e.bronze ?? 0, color: "#c2803a" },
     ];
 
-    let x = 40;
-    for (const t of trophies) {
-      // Dot
+    const startX = 48;
+    const spacing = 155;
+
+    for (let i = 0; i < trophies.length; i++) {
+      const t = trophies[i];
+      const x = startX + i * spacing;
+
+      // Trophy circle
       ctx.beginPath();
-      ctx.arc(x + 8, 178, 8, 0, Math.PI * 2);
+      ctx.arc(x + 12, 195, 10, 0, Math.PI * 2);
       ctx.fillStyle = t.color;
       ctx.fill();
 
       // Count
       ctx.fillStyle = "#f1f5f9";
-      ctx.font = "bold 20px -apple-system, system-ui, sans-serif";
-      ctx.fillText(t.count.toString(), x + 24, 185);
+      ctx.font = "bold 24px -apple-system, system-ui, sans-serif";
+      ctx.fillText(t.count.toString(), x + 32, 203);
 
       // Label
       ctx.fillStyle = "#64748b";
-      ctx.font = "11px -apple-system, system-ui, sans-serif";
-      ctx.fillText(t.label, x + 24, 202);
-
-      x += 130;
+      ctx.font = "12px -apple-system, system-ui, sans-serif";
+      ctx.fillText(t.label, x + 32, 222);
     }
   }
 
-  // Recent games
+  // === Divider 2 ===
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+  ctx.beginPath();
+  ctx.moveTo(48, 250);
+  ctx.lineTo(W - 48, 250);
+  ctx.stroke();
+
+  // === Recent Games ===
   if (profile.recentGames?.length > 0) {
-    ctx.fillStyle = "#64748b";
-    ctx.font = "12px -apple-system, system-ui, sans-serif";
-    ctx.fillText("JEUX RECENTS", 40, 245);
+    ctx.fillStyle = "#475569";
+    ctx.font = "600 11px -apple-system, system-ui, sans-serif";
+    ctx.letterSpacing = "0.5px";
+    ctx.fillText("JEUX RECENTS", 48, 280);
 
     ctx.fillStyle = "#94a3b8";
-    ctx.font = "14px -apple-system, system-ui, sans-serif";
-    const gameNames = profile.recentGames.slice(0, 3).map((g) => g.name).join("  •  ");
-    ctx.fillText(gameNames, 40, 268);
+    ctx.font = "15px -apple-system, system-ui, sans-serif";
+    const gameNames = profile.recentGames.slice(0, 3).map((g) => g.name).join("  ·  ");
+    ctx.fillText(gameNames, 48, 306);
   }
 
-  // Footer
+  // === Footer ===
+  // PS logo text
   ctx.fillStyle = "#1e293b";
-  ctx.font = "11px -apple-system, system-ui, sans-serif";
-  ctx.fillText("PSN App", 40, 320);
+  ctx.font = "12px -apple-system, system-ui, sans-serif";
+  ctx.fillText("PSN App", 48, H - 30);
 
-  ctx.fillStyle = "#3b9eff";
-  ctx.fillText("PlayStation Network", 95, 320);
+  ctx.fillStyle = "rgba(59, 158, 255, 0.6)";
+  ctx.font = "12px -apple-system, system-ui, sans-serif";
+  ctx.fillText("PlayStation Network", 110, H - 30);
+
+  // Total trophies on the right
+  if (profile.trophySummary?.earned) {
+    const e = profile.trophySummary.earned;
+    const total = (e.platinum ?? 0) + (e.gold ?? 0) + (e.silver ?? 0) + (e.bronze ?? 0);
+    ctx.fillStyle = "#475569";
+    ctx.font = "12px -apple-system, system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(`${total} trophees au total`, W - 48, H - 30);
+    ctx.textAlign = "left";
+  }
 
   return canvas;
 }
