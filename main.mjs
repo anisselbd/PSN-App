@@ -52,7 +52,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
-  setupTray(mainWindow).catch(() => {});
+  setupTray(mainWindow);
   startMonitor(mainWindow);
 
   app.on("activate", () => {
