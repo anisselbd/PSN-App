@@ -80,7 +80,7 @@ ipcMain.handle("psn:getFriends", async (_event, limit = 50) => {
     const { data, fromCache } = await staleWhileRevalidate(
       `friends-${limit}`,
       () => fetchFriends(limit),
-      (fresh) => sendToRenderer("psn:freshData", { key: "friends", data: fresh })
+      null // pas de callback — le cache se met à jour silencieusement
     );
     return { ok: true, data, fromCache };
   } catch (err) {

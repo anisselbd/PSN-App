@@ -54,28 +54,9 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => navigate(btn.dataset.view));
 });
 
-// Quand des données fraîches arrivent du background, re-render une seule fois
-const refreshMap = {
-  profile: "dashboard",
-  friends: "friends",
-  trophyTitles: "trophies",
-  playedGames: "library",
-};
-
-const recentRefreshes = new Set();
-
-window.psnAPI.onFreshData(({ key }) => {
-  const targetView = refreshMap[key];
-  if (!targetView || currentView !== targetView) return;
-
-  // Anti-boucle : ignorer si on a déjà refresh cette clé récemment
-  if (recentRefreshes.has(key)) return;
-  recentRefreshes.add(key);
-  setTimeout(() => recentRefreshes.delete(key), 10_000);
-
-  const content = document.getElementById("content");
-  views[currentView](content);
-});
+// Les données fraîches du background ne déclenchent plus de re-render auto.
+// Le cache est mis à jour silencieusement, les vues se rafraîchissent
+// via l'auto-refresh timer ou le bouton Rafraîchir.
 
 // Mettre à jour le compteur d'amis en ligne quand le monitor envoie des données
 window.psnAPI.onPresenceUpdate(({ onlineCount }) => {
