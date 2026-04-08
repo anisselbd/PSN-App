@@ -14,11 +14,18 @@ import { fetchPlayedGames } from "./src/psn-games.js";
 import { searchPlayers, fetchPlayerProfile } from "./src/psn-search.js";
 import { setupTray } from "./src/tray.js";
 import { startMonitor, stopMonitor } from "./src/presence-monitor.js";
+import { staleWhileRevalidate } from "./src/cache.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow = null;
+
+function sendToRenderer(channel, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, data);
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -35,7 +42,6 @@ function createWindow() {
 
   mainWindow.loadFile("index.html");
 
-  // Sur macOS, masquer au lieu de fermer
   mainWindow.on("close", (e) => {
     if (process.platform === "darwin" && !app.isQuitting) {
       e.preventDefault();
@@ -67,12 +73,16 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-// === IPC Handlers ===
+// === IPC Handlers avec cache stale-while-revalidate ===
 
 ipcMain.handle("psn:getFriends", async (_event, limit = 50) => {
   try {
-    const result = await fetchFriends(limit);
-    return { ok: true, data: result };
+    const { data, fromCache } = await staleWhileRevalidate(
+      `friends-${limit}`,
+      () => fetchFriends(limit),
+      (fresh) => sendToRenderer("psn:freshData", { key: "friends", data: fresh })
+    );
+    return { ok: true, data, fromCache };
   } catch (err) {
     console.error("[ipc] psn:getFriends error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };
@@ -81,8 +91,12 @@ ipcMain.handle("psn:getFriends", async (_event, limit = 50) => {
 
 ipcMain.handle("psn:getMyProfile", async () => {
   try {
-    const result = await fetchMyProfile();
-    return { ok: true, data: result };
+    const { data, fromCache } = await staleWhileRevalidate(
+      "my-profile",
+      () => fetchMyProfile(),
+      (fresh) => sendToRenderer("psn:freshData", { key: "profile", data: fresh })
+    );
+    return { ok: true, data, fromCache };
   } catch (err) {
     console.error("[ipc] psn:getMyProfile error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };
@@ -91,8 +105,12 @@ ipcMain.handle("psn:getMyProfile", async () => {
 
 ipcMain.handle("psn:getTrophyTitles", async (_event, offset = 0, limit = 50) => {
   try {
-    const result = await fetchTrophyTitles(offset, limit);
-    return { ok: true, data: result };
+    const { data, fromCache } = await staleWhileRevalidate(
+      `trophy-titles-${offset}-${limit}`,
+      () => fetchTrophyTitles(offset, limit),
+      (fresh) => sendToRenderer("psn:freshData", { key: "trophyTitles", data: fresh })
+    );
+    return { ok: true, data, fromCache };
   } catch (err) {
     console.error("[ipc] psn:getTrophyTitles error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };
@@ -101,8 +119,12 @@ ipcMain.handle("psn:getTrophyTitles", async (_event, offset = 0, limit = 50) => 
 
 ipcMain.handle("psn:getTrophiesForTitle", async (_event, npCommunicationId, npServiceName) => {
   try {
-    const result = await fetchTrophiesForTitle(npCommunicationId, npServiceName);
-    return { ok: true, data: result };
+    const { data, fromCache } = await staleWhileRevalidate(
+      `trophies-${npCommunicationId}`,
+      () => fetchTrophiesForTitle(npCommunicationId, npServiceName),
+      (fresh) => sendToRenderer("psn:freshData", { key: `trophies-${npCommunicationId}`, data: fresh })
+    );
+    return { ok: true, data, fromCache };
   } catch (err) {
     console.error("[ipc] psn:getTrophiesForTitle error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };
@@ -111,14 +133,19 @@ ipcMain.handle("psn:getTrophiesForTitle", async (_event, npCommunicationId, npSe
 
 ipcMain.handle("psn:getPlayedGames", async (_event, offset = 0, limit = 50) => {
   try {
-    const result = await fetchPlayedGames(offset, limit);
-    return { ok: true, data: result };
+    const { data, fromCache } = await staleWhileRevalidate(
+      `played-games-${offset}-${limit}`,
+      () => fetchPlayedGames(offset, limit),
+      (fresh) => sendToRenderer("psn:freshData", { key: "playedGames", data: fresh })
+    );
+    return { ok: true, data, fromCache };
   } catch (err) {
     console.error("[ipc] psn:getPlayedGames error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };
   }
 });
 
+// Pas de cache pour la recherche (requêtes dynamiques)
 ipcMain.handle("psn:searchPlayers", async (_event, query) => {
   try {
     const result = await searchPlayers(query);
@@ -131,8 +158,12 @@ ipcMain.handle("psn:searchPlayers", async (_event, query) => {
 
 ipcMain.handle("psn:getPlayerProfile", async (_event, accountId) => {
   try {
-    const result = await fetchPlayerProfile(accountId);
-    return { ok: true, data: result };
+    const { data, fromCache } = await staleWhileRevalidate(
+      `player-${accountId}`,
+      () => fetchPlayerProfile(accountId),
+      (fresh) => sendToRenderer("psn:freshData", { key: `player-${accountId}`, data: fresh })
+    );
+    return { ok: true, data, fromCache };
   } catch (err) {
     console.error("[ipc] psn:getPlayerProfile error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };

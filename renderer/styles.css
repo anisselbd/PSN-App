@@ -1252,3 +1252,21 @@ body {
   color: var(--text-muted);
   opacity: 0.4;
 }
+
+/* ===== Cache Indicator ===== */
+.cache-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  margin-left: 8px;
+}
+
+.cache-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+}

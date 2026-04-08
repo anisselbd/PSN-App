@@ -1,5 +1,6 @@
 node_modules/
 .env
 .psn-tokens.json
+.cache/
 dist/
 out/

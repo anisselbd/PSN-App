@@ -43,5 +43,21 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => navigate(btn.dataset.view));
 });
 
+// Quand des données fraîches arrivent du background, re-render la vue active
+const refreshMap = {
+  profile: "dashboard",
+  friends: "friends",
+  trophyTitles: "trophies",
+  playedGames: "library",
+};
+
+window.psnAPI.onFreshData(({ key }) => {
+  const targetView = refreshMap[key];
+  if (targetView && currentView === targetView) {
+    const content = document.getElementById("content");
+    views[currentView](content);
+  }
+});
+
 // Initial load
 navigate("dashboard");
