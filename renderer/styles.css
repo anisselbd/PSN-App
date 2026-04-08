@@ -390,13 +390,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: linear-gradient(135deg, #f5c518, #daa600);
-  margin-left: 5px;
+  margin-left: 4px;
   vertical-align: middle;
-  box-shadow: 0 1px 3px rgba(234, 179, 8, 0.3);
 }
 
 .friend-status {
