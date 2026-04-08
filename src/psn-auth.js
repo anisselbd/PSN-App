@@ -109,9 +109,17 @@ export function getMyAccountId() {
 }
 
 /**
- * Wrapper avec retry automatique pour les appels API rate-limités.
+ * Cooldown global : si on est rate limited, on arrête TOUT pendant X secondes.
+ * Évite de spammer l'API et de se faire kick.
  */
-export async function withRetry(fn, maxRetries = 3) {
+let rateLimitedUntil = 0;
+
+export async function withRetry(fn, maxRetries = 2) {
+  // Si on est en cooldown global, fail immédiatement
+  if (Date.now() < rateLimitedUntil) {
+    throw new Error("Rate limited — données du cache utilisées");
+  }
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
@@ -119,11 +127,11 @@ export async function withRetry(fn, maxRetries = 3) {
       const is429 =
         err.message?.includes("Too Many Requests") ||
         err.message?.includes("429");
-      if (is429 && attempt < maxRetries) {
-        const delay = (attempt + 1) * 2000;
-        console.log(`[retry] Rate limited, attente ${delay}ms...`);
-        await new Promise((r) => setTimeout(r, delay));
-        continue;
+      if (is429) {
+        // Cooldown global de 60s — on arrête de taper l'API
+        rateLimitedUntil = Date.now() + 60_000;
+        console.log("[retry] Rate limited — cooldown global 60s, on utilise le cache");
+        throw err;
       }
       throw err;
     }
