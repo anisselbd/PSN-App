@@ -52,6 +52,14 @@ export async function staleWhileRevalidate(key, fetchFn, onFresh, maxAge = 5 * 6
   // Cache périmé ou absent → lancer le fetch
   const refreshPromise = fetchFn()
     .then((freshData) => {
+      // Ne pas écraser le cache si le nouveau résultat est pire (moins d'amis, etc.)
+      const old = getCache(key);
+      const oldCount = old?.data?.friends?.length ?? 0;
+      const newCount = freshData?.friends?.length ?? 0;
+      if (oldCount > 0 && newCount > 0 && newCount < oldCount * 0.5) {
+        console.warn(`[cache] Skip save for ${key}: ${newCount} < ${oldCount} (partiel)`);
+        return freshData;
+      }
       setCache(key, freshData);
       if (onFresh) onFresh(freshData);
       return freshData;
