@@ -8,4 +8,10 @@ contextBridge.exposeInMainWorld("psnAPI", {
     ipcRenderer.invoke("psn:getTrophyTitles", offset, limit),
   getTrophiesForTitle: (npCommunicationId, npServiceName) =>
     ipcRenderer.invoke("psn:getTrophiesForTitle", npCommunicationId, npServiceName),
+  getPlayedGames: (offset, limit) =>
+    ipcRenderer.invoke("psn:getPlayedGames", offset, limit),
+  searchPlayers: (query) =>
+    ipcRenderer.invoke("psn:searchPlayers", query),
+  getPlayerProfile: (accountId) =>
+    ipcRenderer.invoke("psn:getPlayerProfile", accountId),
 });

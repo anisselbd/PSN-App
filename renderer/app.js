@@ -2,11 +2,15 @@
 import { render as renderDashboard } from "./views/dashboard.js";
 import { render as renderFriends } from "./views/friends.js";
 import { render as renderTrophies } from "./views/trophies.js";
+import { render as renderLibrary } from "./views/library.js";
+import { render as renderSearch } from "./views/search.js";
 
 const views = {
   dashboard: renderDashboard,
   friends: renderFriends,
   trophies: renderTrophies,
+  library: renderLibrary,
+  search: renderSearch,
 };
 
 let currentView = "dashboard";

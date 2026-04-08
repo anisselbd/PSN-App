@@ -8,6 +8,8 @@ import {
   fetchTrophyTitles,
   fetchTrophiesForTitle,
 } from "./src/psn-trophies.js";
+import { fetchPlayedGames } from "./src/psn-games.js";
+import { searchPlayers, fetchPlayerProfile } from "./src/psn-search.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,6 +80,36 @@ ipcMain.handle("psn:getTrophiesForTitle", async (_event, npCommunicationId, npSe
     return { ok: true, data: result };
   } catch (err) {
     console.error("[ipc] psn:getTrophiesForTitle error:", err);
+    return { ok: false, error: err.message || "Erreur inconnue" };
+  }
+});
+
+ipcMain.handle("psn:getPlayedGames", async (_event, offset = 0, limit = 50) => {
+  try {
+    const result = await fetchPlayedGames(offset, limit);
+    return { ok: true, data: result };
+  } catch (err) {
+    console.error("[ipc] psn:getPlayedGames error:", err);
+    return { ok: false, error: err.message || "Erreur inconnue" };
+  }
+});
+
+ipcMain.handle("psn:searchPlayers", async (_event, query) => {
+  try {
+    const result = await searchPlayers(query);
+    return { ok: true, data: result };
+  } catch (err) {
+    console.error("[ipc] psn:searchPlayers error:", err);
+    return { ok: false, error: err.message || "Erreur inconnue" };
+  }
+});
+
+ipcMain.handle("psn:getPlayerProfile", async (_event, accountId) => {
+  try {
+    const result = await fetchPlayerProfile(accountId);
+    return { ok: true, data: result };
+  } catch (err) {
+    console.error("[ipc] psn:getPlayerProfile error:", err);
     return { ok: false, error: err.message || "Erreur inconnue" };
   }
 });
